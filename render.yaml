@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: linkamarket-bg-remover
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: U2NET_HOME
+        value: /tmp/.u2net

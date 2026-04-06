@@ -1,0 +1,1 @@
+# linkamarket-bg-remover

@@ -25,12 +25,10 @@ logger.info("Loading u2netp model...")
 SESSION = new_session("u2netp")
 logger.info("✅ Model ready")
 
+MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB — safe for 512MB RAM free tier
+
 
 # ── POST /remove-bg-base64 ──────────────────────────────────────────
-# Called by your Node.js imageGen.js
-# Accepts: { "image_base64": "data:image/jpeg;base64,..." or raw base64 }
-# Returns: { "success": true, "image_base64": "...", "processing_time_ms": 1240 }
-
 class Base64Request(BaseModel):
     image_base64: str
 
@@ -38,19 +36,17 @@ class Base64Request(BaseModel):
 async def remove_bg_base64(body: Base64Request):
     start = time.time()
     try:
-        # Strip data URL prefix if present
         b64 = body.image_base64
         if "," in b64:
             b64 = b64.split(",", 1)[1]
 
         image_data = base64.b64decode(b64)
 
-        if len(image_data) > 15 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="Image too large (max 15MB)")
+        if len(image_data) > MAX_IMAGE_SIZE:
+            raise HTTPException(status_code=413, detail="Image too large (max 5MB)")
 
         logger.info(f"Processing image: {len(image_data)} bytes")
 
-        # Remove background — returns transparent PNG bytes
         result_bytes = remove(image_data, session=SESSION)
         result_b64   = base64.b64encode(result_bytes).decode("utf-8")
 
@@ -71,16 +67,14 @@ async def remove_bg_base64(body: Base64Request):
 
 
 # ── POST /remove-bg ─────────────────────────────────────────────────
-# Same thing but accepts a direct file upload
-
 @app.post("/remove-bg")
 async def remove_bg_file(file: UploadFile = File(...)):
     start = time.time()
     try:
         image_data = await file.read()
 
-        if len(image_data) > 15 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="Image too large (max 15MB)")
+        if len(image_data) > MAX_IMAGE_SIZE:
+            raise HTTPException(status_code=413, detail="Image too large (max 5MB)")
 
         logger.info(f"Processing file: {file.filename}, {len(image_data)} bytes")
 
@@ -104,7 +98,6 @@ async def remove_bg_file(file: UploadFile = File(...)):
 
 
 # ── Health check ────────────────────────────────────────────────────
-
 @app.get("/")
 def root():
     return {

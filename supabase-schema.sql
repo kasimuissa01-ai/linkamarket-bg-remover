@@ -49,10 +49,10 @@ CREATE TABLE IF NOT EXISTS purchases (
 );
 
 -- 4. STORAGE SETUP
--- Create bucket if it doesn't exist
+-- Create bucket if it doesn't exist and ensure it's PUBLIC
 INSERT INTO storage.buckets (id, name, public) 
 VALUES ('game-assets', 'game-assets', true)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET public = true;
 
 -- Cleanup existing policies to avoid conflicts
 DROP POLICY IF EXISTS "Public Access" ON storage.objects;
@@ -61,10 +61,22 @@ DROP POLICY IF EXISTS "Auth Update" ON storage.objects;
 DROP POLICY IF EXISTS "Auth Delete" ON storage.objects;
 
 -- Create storage policies
+-- 1. Allow everyone (public) to READ images
 CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'game-assets');
+
+-- 2. Allow authenticated users to INSERT images
 CREATE POLICY "Auth Insert" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'game-assets' AND auth.role() = 'authenticated');
-CREATE POLICY "Auth Update" ON storage.objects FOR UPDATE USING (bucket_id = 'game-assets' AND auth.role() = 'authenticated');
-CREATE POLICY "Auth Delete" ON storage.objects FOR DELETE USING (bucket_id = 'game-assets' AND auth.role() = 'authenticated');
+
+-- 3. Allow only admins to UPDATE or DELETE images (Highly recommended)
+CREATE POLICY "Auth Update" ON storage.objects FOR UPDATE USING (
+  bucket_id = 'game-assets' AND 
+  (SELECT is_admin FROM public.profiles WHERE id = auth.uid()) = true
+);
+
+CREATE POLICY "Auth Delete" ON storage.objects FOR DELETE USING (
+  bucket_id = 'game-assets' AND 
+  (SELECT is_admin FROM public.profiles WHERE id = auth.uid()) = true
+);
 
 -- 5. ROW LEVEL SECURITY (RLS)
 ALTER TABLE games ENABLE ROW LEVEL SECURITY;
